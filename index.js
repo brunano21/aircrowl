@@ -4,14 +4,20 @@ var rule = new schedule.RecurrenceRule();
 rule.second = 1;*/
 
 var moment = require("moment");
+var models = require("./models");
 
-var ryanair = require("./brokers/ryanair.js");
+models.sequelize.sync({force: true});
+
+var Ryanair = require('./brokers/fr.js');
+var ryanair = new Ryanair(models, {name: "ryanair"});
+ryanair.initAirports();
+
 
 var brokers = [];
 brokers.push(ryanair);
 
 var dateFormat = "YYYY-MM-DD";
-var timeWindow = "2"; // days 
+var timeWindow = "30"; // days 
 var timeWindowType = "days"
 var startDay = moment();
 var endDay = moment().add(timeWindow, timeWindowType);
@@ -34,10 +40,10 @@ function crowl() {
 		};
 
 		for (var i = 0; i < brokers.length; i++) {
-			brokers[i].run(args)
+			brokers[i].crowl(args)
 		}
 			
 	}
 };
 
-doRequest();
+crowl();
