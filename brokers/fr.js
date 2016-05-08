@@ -6,11 +6,13 @@ var _baseURL = "https://desktopapps.ryanair.com/en-ie/availability";
 var _airportsURL = "https://api.ryanair.com/aggregate/3/common?embedded=airports";
 var _db = null;
 var _config = null;
+var _log = null;
 
 var Ryanair = function (db, config) {
 	_airportsTable = db.FRAirport;
 	_flightsTable = db.FRFlight;
 	_config = config;
+	_log = config.logger;
 };
 
 /* Private methods */
@@ -39,7 +41,7 @@ var _storeAirport = function (airport) {
 
  		})
 		.then(function(result) {
-			console.log("Added a new airport -->", result.iataCode);
+			_log.info("Added a new airport -->", result.iataCode);
 		});
 };
 
@@ -71,7 +73,7 @@ var _storeFligths = function (input) {
 			"businessFarePublishedFare": (flight.businessFare) ? flight.businessFare.fares[0].publishedFare : null,
         	"currency": currency
 		}).then(function(result) {
-			console.log("Added a new flight", result.origin, result.destination);
+			_log.info("Added a new flight", result.origin, result.destination);
 		});
 	}
 
@@ -87,24 +89,38 @@ Ryanair.prototype.initAirports = function () {
 	    	 	_storeAirport(airports[i]); 	
 	    	}
 	  	} else {
-	  		console.log("Ryanair:initAirports - something went wrong.");
-	  		console.log(response);
+	  		_log.error("Ryanair:initAirports - something went wrong.");
+	  		_log.error(response);
 	  	} 
 	});
 
 };
 
 Ryanair.prototype.crowl = function(args) {
+	var query = {
+		"DateOut": args.date,
+		"RoundTrip": "false",
+	};
 
-	var queryArgs = args;
-
-	request({url: _baseURL, qs: queryArgs}, function (error, response, body) {
-	  	if (!error && response.statusCode === 200) {
-	    	_storeFligths(JSON.parse(body));
-	  	} else {
-	  		console.log("Ryanair:crowl - something went wrong.");
-	  		console.log(response);
-	  	} 
+	_airportsTable.all({limit: 3}).then(function(airports) {
+		//console.log(airports.length);
+		for (var i = 0; i < airports.length; i++) {
+			var airport = airports[i];
+			query["Origin"] = airport.iataCode;
+			var destinations = JSON.parse(airport.routes);
+			for (var i = 0; i < destinations.length; i++) {
+				query["Destination"] = destinations[i];	 	
+				request({url: _baseURL, qs: query}, function (error, response, body) {
+				  	if (!error && response.statusCode === 200) {
+				    	_storeFligths(JSON.parse(body));
+				  	} else {
+				  		_log.error("Ryanair:crowl - something went wrong.");
+				  		_log.error(response);
+				  	} 
+				 
+		   		});
+			}
+		}
 	});
 	
 };
